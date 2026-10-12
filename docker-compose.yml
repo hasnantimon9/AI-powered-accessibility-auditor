@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    shm_size: "1gb"
+    mem_limit: 2g
+    cpus: 2
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped

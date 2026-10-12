@@ -1,0 +1,8 @@
+playwright
+axe-playwright-python
+requests
+python-dotenv
+pillow
+fastapi
+pydantic
+uvicorn[standard]

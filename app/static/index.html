@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AccessPilot — AI accessibility auditor</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root{
+  --bg:#f6f7fb; --surface:#fff; --surface2:#f0f2f8; --text:#151a2c; --muted:#5b6478;
+  --border:#dfe3ee; --brand:#4f46e5; --brand-ink:#fff; --focus:#1d4ed8;
+  --critical:#b91c1c; --serious:#c2410c; --moderate:#a16207; --minor:#475569;
+  --ok:#15803d; --ok-bg:#dcfce7; --warn:#a16207; --warn-bg:#fef3c7; --bad:#b91c1c; --bad-bg:#fee2e2; --info:#1d4ed8; --info-bg:#dbeafe; --neutral-bg:#e5e7eb;
+  --code-bg:#0f172a; --code-text:#e2e8f0; --before:#fecaca; --after:#bbf7d0;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1020; --surface:#161a30; --surface2:#1e2340; --text:#e8ebf7; --muted:#9aa3bd;
+    --border:#2b3157; --brand:#818cf8; --brand-ink:#0d1020; --focus:#93c5fd;
+    --critical:#fca5a5; --serious:#fdba74; --moderate:#fde68a; --minor:#cbd5e1;
+    --ok:#86efac; --ok-bg:#14361f; --warn:#fde68a; --warn-bg:#3a2f0b; --bad:#fca5a5; --bad-bg:#421515; --info:#93c5fd; --info-bg:#172554; --neutral-bg:#2b3157;
+    --code-bg:#0a0d1c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1020; --surface:#161a30; --surface2:#1e2340; --text:#e8ebf7; --muted:#9aa3bd;
+  --border:#2b3157; --brand:#818cf8; --brand-ink:#0d1020; --focus:#93c5fd;
+  --critical:#fca5a5; --serious:#fdba74; --moderate:#fde68a; --minor:#cbd5e1;
+  --ok:#86efac; --ok-bg:#14361f; --warn:#fde68a; --warn-bg:#3a2f0b; --bad:#fca5a5; --bad-bg:#421515; --info:#93c5fd; --info-bg:#172554; --neutral-bg:#2b3157;
+  --code-bg:#0a0d1c;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:4px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--brand);color:var(--brand-ink);padding:8px 14px;border-radius:6px;z-index:10}
+.skip:focus{left:8px}
+.wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+header.top{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.15rem}
+.logo svg{color:var(--brand)}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 12px;cursor:pointer;font:inherit;font-size:.9rem}
+.icon-btn:hover{background:var(--surface2)}
+.hero{padding:22px 0 8px}
+.hero h1{font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.15;margin:0 0 10px;letter-spacing:-.02em}
+.hero p{color:var(--muted);margin:0;max-width:62ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px}
+form.scan{padding:18px;margin-top:22px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+label.lbl{display:block;font-weight:600;font-size:.9rem;margin-bottom:6px}
+input[type=url],input[type=text]{flex:1 1 300px;min-width:0;padding:12px 14px;font:inherit;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:10px}
+input:focus{border-color:var(--brand)}
+button.primary{background:var(--brand);color:var(--brand-ink);border:0;border-radius:10px;padding:12px 22px;font:inherit;font-weight:700;cursor:pointer}
+button.primary:hover{filter:brightness(1.08)}
+button.primary:disabled{opacity:.6;cursor:not-allowed}
+.hint{color:var(--muted);font-size:.85rem;margin:10px 0 0}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.chip{font:inherit;font-size:.82rem;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:999px;cursor:pointer}
+.chip:hover{border-color:var(--brand)}
+details.adv{margin-top:14px;font-size:.9rem}
+details.adv summary{cursor:pointer;color:var(--muted)}
+details.adv .row{margin-top:8px}
+
+#progress{margin-top:22px;padding:22px}
+.spinner{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin 0.9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation-duration:3s}}
+.ph{display:flex;align-items:center;gap:12px;font-weight:600}
+.ph .time{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums;font-weight:500}
+.steps{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:8px}
+.steps li{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:.95rem}
+.steps li .dot{width:10px;height:10px;border-radius:50%;background:var(--border);flex:none}
+.steps li.active{color:var(--text);font-weight:600}
+.steps li.active .dot{background:var(--brand);box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 25%,transparent)}
+.steps li.done .dot{background:var(--ok)}
+.steps li.done{color:var(--text)}
+
+#error{margin-top:22px;padding:16px 18px;border-color:var(--bad);background:var(--bad-bg)}
+#error h2{margin:0 0 4px;font-size:1.05rem;color:var(--bad)}
+#error p{margin:0;word-break:break-word}
+
+#results{margin:26px 0 60px}
+.summary-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.summary-head h2{margin:0;font-size:1.4rem}
+.summary-head .url{color:var(--muted);font-size:.9rem;word-break:break-all}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
+.stat{padding:14px 16px}
+.stat .n{font-size:1.9rem;font-weight:800;line-height:1.1}
+.stat .l{color:var(--muted);font-size:.85rem}
+.stat.good .n{color:var(--ok)}
+.notice{margin-top:14px;padding:12px 16px;background:var(--info-bg);color:var(--text);border:1px solid var(--info);border-radius:10px;font-size:.92rem}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:22px 0 12px}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.filters button{font:inherit;font-size:.85rem;padding:5px 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.tools{display:flex;gap:8px;align-items:center}
+select{font:inherit;font-size:.85rem;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.list{display:grid;gap:14px}
+.v{padding:0;overflow:hidden}
+.v-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--border)}
+.v-head .rule{font-weight:700;font-size:1.02rem}
+.v-head .wcag{color:var(--muted);font-size:.85rem}
+.v-head .spacer{flex:1}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.sev-critical{color:var(--critical);border:1px solid var(--critical)}
+.sev-serious{color:var(--serious);border:1px solid var(--serious)}
+.sev-moderate{color:var(--moderate);border:1px solid var(--moderate)}
+.sev-minor{color:var(--minor);border:1px solid var(--minor)}
+.st-verified{background:var(--ok-bg);color:var(--ok)}
+.st-not_verified,.st-fix_generation_failed{background:var(--bad-bg);color:var(--bad)}
+.st-not_applicable{background:var(--neutral-bg);color:var(--text)}
+.st-manual_review{background:var(--warn-bg);color:var(--warn)}
+.v-body{padding:14px 18px 18px;display:grid;gap:12px}
+.sel{font:.82rem ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);word-break:break-all}
+.sel b{color:var(--text);font-family:system-ui,sans-serif;font-weight:600}
+.code-block{border-radius:10px;overflow:hidden;background:var(--code-bg)}
+.code-label{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;font-size:.75rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:rgba(255,255,255,.06);color:var(--code-text)}
+.code-label.before{color:var(--before)}
+.code-label.after{color:var(--after)}
+.code-label button{background:transparent;border:1px solid rgba(255,255,255,.25);color:var(--code-text);border-radius:6px;font:inherit;font-size:.72rem;padding:2px 8px;cursor:pointer;text-transform:none;letter-spacing:0}
+.code-label button:hover{background:rgba(255,255,255,.12)}
+pre{margin:0;padding:12px;overflow-x:auto;color:var(--code-text);font:.82rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+.why{margin:0}
+.why strong{font-weight:700}
+.flags{display:flex;gap:8px;flex-wrap:wrap}
+.flag{font-size:.8rem;padding:3px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)}
+.flag.review{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.detail{margin:0;padding:10px 12px;border-left:4px solid var(--warn);background:var(--surface2);border-radius:0 8px 8px 0;font-size:.9rem;word-break:break-word}
+.empty{padding:36px 20px;text-align:center;color:var(--muted)}
+footer{padding:24px 0 40px;color:var(--muted);font-size:.85rem;text-align:center}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="wrap">
+  <header class="top">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="4.5" r="2"/><path d="M4 8.5l8 1.5 8-1.5M12 10v5m0 0l-3.5 6M12 15l3.5 6"/></svg>
+      AccessPilot
+    </div>
+    <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle color theme">Theme</button>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <h1>Find, fix and verify accessibility issues.</h1>
+      <p>Paste a URL. AccessPilot scans it with axe-core, proposes fixes with an LLM, applies each one in a real browser and re-scans to prove it worked.</p>
+    </section>
+
+    <form class="card scan" id="scanForm" novalidate>
+      <label class="lbl" for="url">Page URL</label>
+      <div class="row">
+        <input type="url" id="url" name="url" placeholder="https://example.com" autocomplete="url" inputmode="url" required aria-describedby="urlHint">
+        <button class="primary" id="scanBtn" type="submit">Run audit</button>
+      </div>
+      <p class="hint" id="urlHint">Real sites can take 1–3 minutes. Keep this tab open while the scan runs.</p>
+      <div class="chips" aria-label="Example sites">
+        <span class="hint" style="margin:0">Try:</span>
+        <button type="button" class="chip" data-url="https://example.com">example.com</button>
+        <button type="button" class="chip" data-url="https://news.ycombinator.com">news.ycombinator.com</button>
+        <button type="button" class="chip" data-url="https://www.wikipedia.org">wikipedia.org</button>
+      </div>
+    </form>
+
+    <section class="card" id="progress" hidden aria-live="polite">
+      <div class="ph"><div class="spinner" aria-hidden="true"></div><span id="phText">Auditing…</span><span class="time" id="elapsed">0:00</span></div>
+      <ol class="steps" id="steps">
+        <li><span class="dot"></span>Loading the page in headless Chromium</li>
+        <li><span class="dot"></span>Scanning with axe-core</li>
+        <li><span class="dot"></span>Generating fixes</li>
+        <li><span class="dot"></span>Applying each fix and re-scanning to verify</li>
+      </ol>
+      <p class="hint">The server does not stream progress, so these steps are an estimate of what it is doing.</p>
+      <div style="margin-top:12px"><button class="icon-btn" type="button" id="cancelBtn">Cancel</button></div>
+    </section>
+
+    <section class="card" id="error" role="alert" hidden>
+      <h2 id="errTitle">Something went wrong</h2>
+      <p id="errMsg"></p>
+    </section>
+
+    <section id="results" hidden aria-labelledby="resHeading">
+      <div class="summary-head">
+        <div>
+          <h2 id="resHeading" tabindex="-1">Audit results</h2>
+          <div class="url" id="resUrl"></div>
+        </div>
+        <div class="tools">
+          <button class="icon-btn" id="exportBtn" type="button">Download JSON</button>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="notice" id="capNotice" hidden></div>
+      <div class="toolbar">
+        <div class="filters" id="statusFilters" role="group" aria-label="Filter by fix status"></div>
+        <div class="tools">
+          <label for="sevSel" class="sr">Filter by severity</label>
+          <select id="sevSel">
+            <option value="all">All severities</option>
+            <option value="critical">Critical</option>
+            <option value="serious">Serious</option>
+            <option value="moderate">Moderate</option>
+            <option value="minor">Minor</option>
+          </select>
+        </div>
+      </div>
+      <div class="sr" aria-live="polite" id="countLive"></div>
+      <div class="list" id="list"></div>
+    </section>
+  </main>
+
+  <footer>AccessPilot v1 · scan → fix → verify</footer>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const STATUS_LABEL = {
+    verified:"Verified", not_verified:"Not verified", fix_generation_failed:"Fix failed",
+    not_applicable:"Not applicable", manual_review:"Manual review"
+  };
+  const STATUS_HELP = {
+    verified:"Fix applied and a rescan confirmed the violation cleared",
+    not_verified:"Fix applied but did not resolve the issue (reverted)",
+    fix_generation_failed:"The model did not return anything usable",
+    not_applicable:"Fix could not be applied safely (reverted)",
+    manual_review:"Needs a human"
+  };
+  const state = { data:null, status:"all", sev:"all" };
+  let timer=null, stepTimer=null, controller=null;
+
+  const root=document.documentElement;
+  try{const t=localStorage.getItem("ap-theme"); if(t) root.dataset.theme=t;}catch(e){}
+  $("themeBtn").addEventListener("click",()=>{
+    const dark = root.dataset.theme ? root.dataset.theme==="dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light":"dark";
+    try{localStorage.setItem("ap-theme",root.dataset.theme);}catch(e){}
+  });
+
+  document.querySelectorAll(".chip").forEach(c=>c.addEventListener("click",()=>{ $("url").value=c.dataset.url; $("url").focus(); }));
+
+  function el(tag, props, ...kids){
+    const n=document.createElement(tag);
+    if(props) for(const [k,v] of Object.entries(props)){
+      if(k==="class") n.className=v; else if(k==="text") n.textContent=v; else n.setAttribute(k,v);
+    }
+    for(const k of kids) if(k) n.append(k);
+    return n;
+  }
+  function fmt(s){ return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+  function normalizeUrl(v){
+    v=v.trim();
+    if(!v) return null;
+    if(!/^https?:\/\//i.test(v)) v="https://"+v;
+    try{ const u=new URL(v); if(!u.hostname.includes(".") && u.hostname!=="localhost") return null; return u.href; }catch(e){ return null; }
+  }
+  function apiBase(){ return ""; }
+
+  function startProgress(){
+    $("progress").hidden=false;
+    const items=[...$("steps").children];
+    items.forEach(li=>li.className="");
+    let i=0; items[0].classList.add("active");
+    const t0=Date.now();
+    $("elapsed").textContent="0:00";
+    $("phText").textContent="Auditing… this can take a few minutes";
+    timer=setInterval(()=>{ $("elapsed").textContent=fmt(Math.round((Date.now()-t0)/1000)); },1000);
+    const delays=[6000,8000,25000];
+    const advance=()=>{
+      if(i>=items.length-1) return;
+      items[i].classList.remove("active"); items[i].classList.add("done");
+      i++; items[i].classList.add("active");
+      if(i<items.length-1) stepTimer=setTimeout(advance,delays[i]||15000);
+    };
+    stepTimer=setTimeout(advance,delays[0]);
+  }
+  function stopProgress(){
+    clearInterval(timer); clearTimeout(stepTimer);
+    $("progress").hidden=true;
+  }
+
+  function showError(title,msg){
+    $("errTitle").textContent=title; $("errMsg").textContent=msg;
+    $("error").hidden=false;
+  }
+
+  $("scanForm").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    $("error").hidden=true; $("results").hidden=true;
+    const url=normalizeUrl($("url").value);
+    if(!url){ showError("Enter a valid URL","Please enter a full page address such as https://example.com."); $("url").focus(); return; }
+    $("url").value=url;
+
+    $("scanBtn").disabled=true; $("scanBtn").textContent="Scanning…";
+    startProgress();
+    controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort("timeout"),10*60*1000);
+    try{
+      const res=await fetch(apiBase()+"/scan",{
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({url}), signal:controller.signal
+      });
+      let body=null;
+      try{ body=await res.json(); }catch(_){}
+      if(!res.ok){
+        const raw=body&&body.error;
+        const msg=typeof raw==="string" ? raw : raw ? JSON.stringify(raw) : "The server returned status "+res.status+".";
+        const titles={422:"That URL can't be scanned",502:"The scan failed upstream",504:"The page didn't load"};
+        stopProgress();
+        showError(titles[res.status]||"Request failed",msg);
+        return;
+      }
+      stopProgress();
+      state.data=body; state.status="all"; state.sev="all"; $("sevSel").value="all";
+      render();
+    }catch(err){
+      stopProgress();
+      if(controller.signal.aborted){
+        showError(controller.signal.reason==="timeout"?"Scan timed out":"Scan cancelled",
+          controller.signal.reason==="timeout"?"The scan took longer than 10 minutes.":"You cancelled the scan. The server may keep working on it in the background.");
+      } else {
+        showError("Can't reach the API","Is the server running? Start it with: uvicorn app.main:app --reload. ("+err.message+")");
+      }
+    }finally{
+      clearTimeout(timeout);
+      $("scanBtn").disabled=false; $("scanBtn").textContent="Run audit";
+    }
+  });
+  $("cancelBtn").addEventListener("click",()=>{ if(controller) controller.abort("user"); });
+
+  function render(){
+    const d=state.data, v=d.violations||[];
+    $("resUrl").textContent=d.url+" · WCAG "+d.wcag_level;
+    const counts={}; v.forEach(x=>{counts[x.fix.status]=(counts[x.fix.status]||0)+1;});
+    const verified=counts.verified||0, review=counts.manual_review||0;
+    const stats=$("stats"); stats.textContent="";
+    const mk=(n,l,cls)=>stats.append(el("div",{class:"card stat "+(cls||"")},el("div",{class:"n",text:String(n)}),el("div",{class:"l",text:l})));
+    mk(d.total_violations_found,"Violations found");
+    mk(d.violations_processed,"Processed");
+    mk(verified,"Fixes verified","good");
+    mk(review,"Need manual review");
+
+    const cap=$("capNotice");
+    if(d.total_violations_found>d.violations_processed){
+      cap.hidden=false;
+      cap.textContent="Only the "+d.violations_processed+" most severe of "+d.total_violations_found+" violations were sent through fix generation (to stay within LLM rate limits).";
+    } else cap.hidden=true;
+
+    const f=$("statusFilters"); f.textContent="";
+    const addF=(key,label,n)=>{
+      const b=el("button",{type:"button","aria-pressed":String(state.status===key)});
+      b.textContent=label+" ("+n+")";
+      if(STATUS_HELP[key]) b.title=STATUS_HELP[key];
+      b.addEventListener("click",()=>{state.status=key; render();});
+      f.append(b);
+    };
+    addF("all","All",v.length);
+    Object.keys(STATUS_LABEL).forEach(k=>{ if(counts[k]) addF(k,STATUS_LABEL[k],counts[k]); });
+
+    const list=$("list"); list.textContent="";
+    const shown=v.filter(x=>(state.status==="all"||x.fix.status===state.status)&&(state.sev==="all"||x.severity===state.sev));
+    $("countLive").textContent=shown.length+" results shown";
+    if(!v.length) list.append(el("div",{class:"card empty",text:"No accessibility violations found. Nice work!"}));
+    else if(!shown.length) list.append(el("div",{class:"card empty",text:"No results match these filters."}));
+    shown.forEach(x=>list.append(card(x)));
+    $("results").hidden=false;
+    if(!state._scrolled){ state._scrolled=true; }
+    $("resHeading").focus({preventScroll:true});
+    $("results").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  function codeBlock(label,cls,text){
+    const btn=el("button",{type:"button","aria-label":"Copy "+label.toLowerCase()+" code"}); btn.textContent="Copy";
+    btn.addEventListener("click",async()=>{
+      try{ await navigator.clipboard.writeText(text); btn.textContent="Copied"; }catch(_){ btn.textContent="Failed"; }
+      setTimeout(()=>btn.textContent="Copy",1500);
+    });
+    return el("div",{class:"code-block"},
+      el("div",{class:"code-label "+cls},el("span",{text:label}),btn),
+      el("pre",{text}));
+  }
+
+  function card(x){
+    const fx=x.fix;
+    const head=el("div",{class:"v-head"},
+      el("span",{class:"rule",text:x.issue_type}),
+      x.wcag_criterion?el("span",{class:"wcag",text:"WCAG "+x.wcag_criterion}):null,
+      el("span",{class:"spacer"}),
+      x.severity?el("span",{class:"badge sev-"+x.severity,text:x.severity}):null,
+      el("span",{class:"badge st-"+fx.status,text:(fx.status==="verified"?"✓ ":"")+(STATUS_LABEL[fx.status]||fx.status),title:STATUS_HELP[fx.status]||""})
+    );
+    const body=el("div",{class:"v-body"});
+    const sel=el("div",{class:"sel"},el("b",{text:"Element: "}),document.createTextNode(x.selector));
+    body.append(sel, codeBlock("Before","before",x.original_html));
+    if(fx.fix_code) body.append(codeBlock("Suggested fix","after",fx.fix_code));
+    if(fx.explanation){
+      const p=el("p",{class:"why"}); p.append(el("strong",{text:"Why: "}),document.createTextNode(fx.explanation)); body.append(p);
+    }
+    const flags=el("div",{class:"flags"});
+    if(fx.rescan_validated) flags.append(el("span",{class:"flag",text:"Rescan passed"}));
+    if(fx.llm_validated) flags.append(el("span",{class:"flag",text:"LLM self-check passed"}));
+    if(fx.needs_review) flags.append(el("span",{class:"flag review",text:"Contains an assumption — please review"}));
+    if(flags.children.length) body.append(flags);
+    if(fx.detail) body.append(el("p",{class:"detail",text:fx.detail}));
+    return el("article",{class:"card v"},head,body);
+  }
+
+  $("sevSel").addEventListener("change",e=>{ state.sev=e.target.value; render(); });
+  $("exportBtn").addEventListener("click",()=>{
+    if(!state.data) return;
+    const blob=new Blob([JSON.stringify(state.data,null,2)],{type:"application/json"});
+    const a=el("a",{href:URL.createObjectURL(blob),download:"accesspilot-report.json"});
+    document.body.append(a); a.click(); a.remove();
+  });
+})();
+</script>
+</body>
+</html>
